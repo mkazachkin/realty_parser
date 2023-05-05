@@ -17,7 +17,6 @@ chrome_driver = webdriver.Chrome(
 #         repa.REALTY_RESIDENTAL,
 #         repa.OFFER_SALE)
 #     break
-# print(flat_ids)
 # if len(flat_ids) > 0:
 #     flat_ids = repa.remove_saved(flat_ids)
 # print(flat_ids)
