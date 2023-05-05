@@ -10,13 +10,17 @@ chrome_driver = webdriver.Chrome(
     executable_path=repa.DRIVER_CHROME_PATH,
     options=chrome_options)
 
-for region in repa.REGIONS:
-    flat_ids = repa.get_offer_ids_w_prices(
-        chrome_driver,
-        repa.REGIONS[3],
-        repa.REALTY_RESIDENTAL,
-        repa.OFFER_SALE)
-    break
-flat_ids = repa.remove_saved(flat_ids)
-print(flat_ids)
+# for region in repa.REGIONS:
+#     flat_ids = repa.get_offer_ids_w_prices(
+#         chrome_driver,
+#         repa.REGIONS[3],
+#         repa.REALTY_RESIDENTAL,
+#         repa.OFFER_SALE)
+#     break
+# print(flat_ids)
+# if len(flat_ids) > 0:
+#     flat_ids = repa.remove_saved(flat_ids)
+# print(flat_ids)
+# for id in flat_ids:
+repa.get_offer_info(chrome_driver, '489010836')
 chrome_driver.close

@@ -10,6 +10,7 @@ from keyring import get_password
 from keyring import set_password
 from getpass import getpass
 from uuid import uuid4
+from dateutil.parser import parse as date_parser
 import base64
 import psycopg2
 
@@ -107,10 +108,10 @@ def get_offer_ids_w_prices(
     if l_page == 1:
         l_page = get_last_page(soup)
     if f_page == l_page:
-        return get_ids_w_prices(soup)
+        return get_ids_w_prices(soup, url)
     else:
         sleep(SLEEP_TIME)
-        return get_ids_w_prices(soup) + get_offer_ids_w_prices(
+        return get_ids_w_prices(soup, url) + get_offer_ids_w_prices(
             browser_driver,
             region,
             realty_code,
@@ -119,18 +120,19 @@ def get_offer_ids_w_prices(
             l_page)
 
 
-def get_ids_w_prices(soup) -> list():
+def get_ids_w_prices(soup, url) -> list():
     '''
     Извлекает идентификаторы и цены предложений со страницы.
     Аргументы
         soup    обработанная библиотекой BeautifulSoup страница сайта
+        url     адрес страницы, которая подвергается обработке
     Возвращает
         get_ids список идентификаторов (ключ) и цены (значения)
     '''
     ids = [tag['id'].strip('ofer- ')            # от идентификатора убираем префикс, но оставляем его строкой
            for tag in soup.select('a[id]') if tag]
     prc = [tag.string
-           for tag in soup.select('td._price.offer-tablecell') if tag]
+           for tag in soup.find_all('td', {'class': 'offer-table__cell _price'}) if tag]
     for i in range(len(prc)):
         prc[i] = prc[i].replace(' ', '')
         prc[i] = prc[i].replace(u'\u00A0', '')  # неразрывные пробелы utf-8
@@ -139,8 +141,8 @@ def get_ids_w_prices(soup) -> list():
         else:
             prc[i] = 0                          # цена может быть "договорная"
     if len(ids) != len(prc):
-        print('WARNING: количество предложений и цен не совпадает. Страница не обработана')
-        return list()
+        raise ValueError(
+            f'Количество предложений ({len(ids)}) и цен ({len(prc)}) на странице ({url}) не совпадает.')
     else:
         return [{ids[i]:prc[i]} for i in range(len(ids))]
 
@@ -154,7 +156,7 @@ def get_last_page(soup) -> int:
         get_last_page   номер последней страницы с предложениями
     '''
     pages_list = [int(tag.string)
-                  for tag in soup.select('a._link.paginatoritem') if tag]
+                  for tag in soup.find_all('a', {'class': 'paginatoritem _link'}) if tag]
     if len(pages_list) != 0:
         return max(pages_list)
     else:
@@ -207,7 +209,7 @@ def capture_screenshot(browser_driver, file_name) -> None:
 
 def remove_saved(ids_w_prices: list) -> list:
     '''
-    Убирает из списка идентификаторов те, что ранее уже были занесены в базу данных по 
+    Убирает из списка идентификаторов те, что ранее уже были занесены в базу данных по
     указанной цене
     Аргументы
         ids_w_prices    список идентификаторов объявлений, полученных на сайте и цены предложений
@@ -228,7 +230,7 @@ def remove_saved(ids_w_prices: list) -> list:
         replace('}', ')').\
         replace(': ', ',')
     sql_str += f'INSERT INTO public.{tmp_table} (offer_original_id, offer_price) VALUES ' + \
-        values + ';'
+        values + ';\n'
     sql_str += f'DELETE FROM {tmp_table} tmt USING t_offers tof ' + \
         'WHERE tmt.offer_original_id=tof.offer_original_id and tmt.offer_price=tof.offer_price;'
     sql_execute(sql_str)
@@ -268,3 +270,33 @@ def set_db_password() -> None:
     Сохраняет пароль пользователя в конфигурацию
     '''
     set_password(PG_PASS_KEY, PG_USER, getpass())
+
+
+def get_offer_info(browser_driver, object_id) -> None:
+    '''
+    Обрабатывает страницу предложения и сохраняет полученную информацию в БД
+    Аргументы
+        browser_driver  Ссылка на драйвер браузера Selenium
+        object_id       Идентификатор предложения на сайте
+    '''
+    url = URL_ROOT + '/' + URL_OFFERS + '/' + object_id
+    browser_driver.get(url)
+    capture_screenshot(browser_driver, object_id)
+    soup = BeautifulSoup(browser_driver.page_source, features='lxml')
+    offer_date = date_parser(str(
+        soup.find(
+            'div', {'class': 'info flex-row'})
+        .find_all('b')[1]), fuzzy=True)
+    print(offer_date)
+    offer_price = soup.find(
+        'div', {'style': 'font-size:24px; color:#e52;'}).get('value')
+    print(offer_price)
+    offer_text = ''
+    obj_address = ''
+    obj_area = ''
+    obj_wall_name = ''
+    obj_rooms = ''
+    obj_floor = ''
+    obj_type = ''
+    obj_coords_x = 0.0
+    obj_coords_y = 0.0
